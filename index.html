@@ -381,7 +381,7 @@
             display: flex;
             gap: 0.8rem;
             margin-bottom: 1.5rem;
-            flex-wrap: wrap;
+            width: 100%;
         }
         .probability-btn {
             padding: 0.6rem 1.2rem;
@@ -393,7 +393,6 @@
             transition: all 0.3s;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             flex: 1;
-            min-width: 120px;
             text-align: center;
             opacity: 0.7;
         }
@@ -1129,20 +1128,17 @@
                 const probabilityFilter = document.createElement('div');
                 probabilityFilter.className = 'probability-filter';
                 probabilityFilter.innerHTML = `
-                    <button class="probability-btn very-high active" data-probability="very-high">Very High</button>
-                    <button class="probability-btn high" data-probability="high">High</button>
+                    <button class="probability-btn high active" data-probability="high">High</button>
                     <button class="probability-btn medium" data-probability="medium">Medium</button>
+                    <button class="probability-btn low" data-probability="low">Low</button>
                 `;
                 filterSection.appendChild(probabilityFilter);
 
                 // Add click handlers for probability buttons
                 probabilityFilter.querySelectorAll('.probability-btn').forEach(btn => {
                     btn.addEventListener('click', function() {
-                        // Remove active class from all buttons
                         probabilityFilter.querySelectorAll('.probability-btn').forEach(b => b.classList.remove('active'));
-                        // Add active class to clicked button
                         this.classList.add('active');
-                        // Filter colleges
                         filterColleges();
                     });
                 });
@@ -1271,13 +1267,6 @@
                             <p>Gender: ${gender}</p>
                             
                             <div class="probability-section">
-                                <h6>Very High Probability Colleges</h6>
-                                <ul>
-                                    ${colleges.filter(c => c.probability === 'very-high').slice(0, 3).map(college => `
-                                        <li>${college.Institute} - ${college.Program} (Rank: ${college.ClosingRank})</li>
-                                    `).join('')}
-                                </ul>
-                                
                                 <h6>High Probability Colleges</h6>
                                 <ul>
                                     ${colleges.filter(c => c.probability === 'high').slice(0, 3).map(college => `
@@ -1609,9 +1598,24 @@
                 { maxRank: 15000, minMarks: 100 }
             ];
 
-            for (let range of rankRanges) {
-                if (marks >= range.minMarks) {
-                    return range.maxRank;
+            // If marks are above the highest range
+            if (marks >= rankRanges[0].minMarks) {
+                return rankRanges[0].maxRank;
+            }
+            // If marks are below the lowest range
+            if (marks <= rankRanges[rankRanges.length - 1].minMarks) {
+                return rankRanges[rankRanges.length - 1].maxRank;
+            }
+
+            // Find the two ranges marks falls between
+            for (let i = 0; i < rankRanges.length - 1; i++) {
+                const upper = rankRanges[i];
+                const lower = rankRanges[i + 1];
+                if (marks < upper.minMarks && marks >= lower.minMarks) {
+                    // Linear interpolation
+                    const ratio = (marks - lower.minMarks) / (upper.minMarks - lower.minMarks);
+                    const interpolatedRank = lower.maxRank + (upper.maxRank - lower.maxRank) * ratio;
+                    return Math.round(interpolatedRank);
                 }
             }
             return 15000;
@@ -1624,9 +1628,9 @@
             ).sort((a, b) => a.ClosingRank - b.ClosingRank);
 
             const result = {
-                veryHigh: [],
                 high: [],
-                medium: []
+                medium: [],
+                low: []
             };
 
             colleges.forEach(college => {
@@ -1634,19 +1638,22 @@
                 const rankPercentage = (rankDiff / rank) * 100;
 
                 if (college.ClosingRank > rank * 1.2) {
-                    result.veryHigh.push({...college, probability: 'very-high'});
-                } else if (college.ClosingRank > rank) {
+                    // College has closing rank more than 20% above predicted rank
                     result.high.push({...college, probability: 'high'});
                 } else if (rankPercentage <= 20) {
+                    // College has closing rank within 20% of predicted rank
                     result.medium.push({...college, probability: 'medium'});
+                } else {
+                    // College has closing rank between 20% and 120% of predicted rank
+                    result.low.push({...college, probability: 'low'});
                 }
             });
 
             // Return a flat array of all colleges with their probabilities
             return [
-                ...result.veryHigh,
                 ...result.high,
-                ...result.medium
+                ...result.medium,
+                ...result.low
             ];
         }
 
